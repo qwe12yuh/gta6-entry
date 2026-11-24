@@ -1,0 +1,6 @@
+[
+  { "name": "1-cover-chase.jpg", "query": "?shot=chase" },
+  { "name": "2-onfoot-combat.jpg", "query": "?shot=onfoot" },
+  { "name": "3-aerial-bay.jpg", "query": "?shot=aerial" },
+  { "name": "4-world-map.jpg", "query": "?shot=map" }
+]

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#11232c">
+  <link rel="icon" href="data:,">
+  <title>SOLARIS KEYS</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+</head>
+<body>
+  <canvas id="game" aria-label="Solaris Keys 3D open world"></canvas>
+  <main id="hud" hidden>
+    <div class="skyline-tag"><i></i><span>SOLARIS KEYS</span></div>
+    <section class="upper-left">
+      <article class="panel objective">
+        <div class="eyebrow"><span id="operation">CAMPAIGN</span><span id="stage"></span></div>
+        <h1 id="mission-name"></h1>
+        <div class="goal"><i></i><span id="mission-goal"></span><b id="distance"></b></div>
+        <div id="stage-pips" class="stage-pips"></div>
+      </article>
+      <article class="panel dispatch" id="dispatch" hidden>
+        <div class="eyebrow"><span><i></i> SKPD TACTICAL DISPATCH</span><span id="unit-count"></span></div>
+        <div id="unit-table"></div>
+      </article>
+    </section>
+    <section class="upper-right panel">
+      <div class="clock"><span id="time"></span><b>LOCAL</b><strong id="cash"></strong></div>
+      <div id="stars" aria-label="Wanted level"></div>
+      <div id="air-unit" hidden>▲ AIR UNIT DEPLOYED</div>
+      <div class="rank"><span id="rank"></span><b id="rp"></b></div>
+      <div class="meter rank-meter"><i id="rank-fill"></i></div>
+    </section>
+    <section class="lower-left panel">
+      <div class="district-head"><span id="district-index"></span><div><h2 id="district"></h2><p id="street"></p></div></div>
+      <div class="control-meter"><span>DISTRICT STANDING</span><b id="standing"></b></div>
+      <div class="meter"><i id="standing-fill"></i></div>
+      <div class="minimap-frame"><canvas id="minimap" width="426" height="238" aria-label="Rotating minimap"></canvas><div class="map-chip">GPS <b>◆</b></div></div>
+      <div class="vitals"><span>HP</span><div class="meter health"><i id="health"></i></div><span>AR</span><div class="meter armor"><i id="armor"></i></div></div>
+    </section>
+    <section class="lower-center">
+      <article id="comms" class="comms panel" hidden><div id="portrait"></div><div><div id="voice" class="eyebrow"></div><p id="line"></p></div><b class="wave" aria-hidden="true">▂▅▃▆▂</b></article>
+      <div id="notice" hidden></div>
+      <div id="weapons" class="weapons" aria-label="Weapon selector"></div>
+      <div class="loadout"><span id="weapon-name"></span><span id="interaction"></span><span id="ammo"></span></div>
+    </section>
+    <section class="lower-right">
+      <div class="crew-abilities" id="abilities"></div>
+      <article id="vehicle" class="panel vehicle" hidden>
+        <div class="eyebrow"><span id="vehicle-class"></span><span id="gear"></span></div>
+        <div class="speed-row"><strong id="speed"></strong><b id="measurement">KM/H</b></div>
+        <h2 id="vehicle-name"></h2>
+        <div class="telemetry"><span id="primary-label">NITRO</span><div class="meter nitro"><i id="nitro"></i></div><b id="nitro-value"></b></div>
+        <div class="telemetry"><span>HULL</span><div class="meter"><i id="hull"></i></div><b id="hull-value"></b></div>
+        <div class="radio"><span>◉ <b id="radio"></b></span><kbd>Q</kbd></div>
+      </article>
+    </section>
+    <div id="reticle" hidden><i></i><i></i><i></i><i></i></div>
+    <div id="damage"></div>
+  </main>
+  <section id="overlay" aria-label="Menu" hidden></section>
+  <div id="error" role="alert" hidden></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
