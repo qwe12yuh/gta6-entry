@@ -86,11 +86,15 @@ export function towerFacade(seed, evening = false, style = 'glass') {
 export function signTexture(title, subtitle, accent, background = '#15222b') {
   return drawTexture(512, 128, (ctx,w,h) => {
     ctx.fillStyle=background;ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle=accent;ctx.lineWidth=3;ctx.strokeRect(5,5,w-10,h-10);
+    ctx.strokeStyle=accent;ctx.lineWidth=3;ctx.strokeRect(6,6,w-12,h-12);
+    ctx.globalAlpha=.32;ctx.lineWidth=1;ctx.strokeRect(13,13,w-26,h-26);ctx.globalAlpha=1;
+    for(const x of [21,w-21]){
+      ctx.fillStyle=accent;ctx.fillRect(x-2,88,4,18);
+    }
     ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.shadowColor=accent;ctx.shadowBlur=15;ctx.fillStyle=accent;
-    ctx.font='bold 48px "Arial Narrow", sans-serif';ctx.fillText(title,w/2,50,w-30);
-    ctx.shadowBlur=0;ctx.font='bold 16px monospace';ctx.fillText(subtitle,w/2,99,w-30);
+    ctx.shadowColor=accent;ctx.shadowBlur=17;ctx.fillStyle=accent;
+    ctx.font='900 55px "Segoe UI", sans-serif';ctx.fillText(title,w/2,52,w-38);
+    ctx.shadowBlur=0;ctx.font='bold 17px monospace';ctx.fillText(subtitle,w/2,98,w-53);
   });
 }
 

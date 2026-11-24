@@ -6,13 +6,12 @@
   <meta name="theme-color" content="#11232c">
   <link rel="icon" href="data:,">
   <title>SOLARIS KEYS</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./styles.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
 <body>
   <canvas id="game" aria-label="Solaris Keys 3D open world"></canvas>
   <main id="hud" hidden>
-    <div class="skyline-tag"><i></i><span>SOLARIS KEYS</span></div>
     <section class="upper-left">
       <article class="panel objective">
         <div class="eyebrow"><span id="operation">CAMPAIGN</span><span id="stage"></span></div>
@@ -51,11 +50,13 @@
         <div class="eyebrow"><span id="vehicle-class"></span><span id="gear"></span></div>
         <div class="speed-row"><strong id="speed"></strong><b id="measurement">KM/H</b></div>
         <h2 id="vehicle-name"></h2>
-        <div class="telemetry"><span id="primary-label">NITRO</span><div class="meter nitro"><i id="nitro"></i></div><b id="nitro-value"></b></div>
+        <div class="telemetry" id="nitro-row"><span id="primary-label">NITRO</span><div class="meter nitro"><i id="nitro"></i></div><b id="nitro-value"></b></div>
         <div class="telemetry"><span>HULL</span><div class="meter"><i id="hull"></i></div><b id="hull-value"></b></div>
         <div class="radio"><span>◉ <b id="radio"></b></span><kbd>Q</kbd></div>
       </article>
     </section>
+    <div id="flight-tape" hidden><div><span id="heading-left"></span><strong id="heading"></strong><span id="heading-right"></span></div><b id="beacon"></b></div>
+    <div id="target-pips" aria-hidden="true"></div>
     <div id="reticle" hidden><i></i><i></i><i></i><i></i></div>
     <div id="damage"></div>
   </main>

@@ -20,7 +20,10 @@ export function raiseWanted(sim,amount){
 export function clearWanted(sim){
   const p=sim.police;
   p.stars=0; p.quiet=0;
-  for(const unit of p.units)removeVehicle(sim.scene,unit.car);
+  for(const {car} of p.units){
+    if(car.wrecked)sim.vehicles.push(car);
+    else removeVehicle(sim.scene,car);
+  }
   if(p.air)removeVehicle(sim.scene,p.air);
   for(const person of p.officers)sim.scene.remove(person.group);
   p.units.length=0;p.officers.length=0;p.air=null;
@@ -84,7 +87,7 @@ function updatePursuitUnit(sim,unit,dt){
   const car=unit.car;
   if(car.hull<=0)return;
   const focus=sim.focus(), own=sim.player.vehicle;
-  const moving=own&&own.pos.y<4;
+  const moving=own&&own.pos.y<4&&!own.parts.water;
   const yaw=moving?own.yaw:sim.player.yaw;
   const dx=Math.sin(yaw),dz=-Math.cos(yaw);
   const side=unit.id%2===0?1:-1;
@@ -120,9 +123,9 @@ function flyOverPursuit(sim,dt){
   heli.body.rotation.z=.13*Math.sin(a);
 }
 
-function updateOfficers(sim,dt){
+export function updateHostiles(sim,people,dt){
   const focus=sim.focus();
-  for(const p of sim.police.officers){
+  for(const p of people){
     if(p.down){animateWalker(p,sim.time);continue;}
     const at=p.group.position;
     const d=Math.hypot(focus.x-at.x,focus.z-at.z);
@@ -130,9 +133,12 @@ function updateOfficers(sim,dt){
     p.pace=d>13?4.3:0;
     const x=at.x+Math.sin(p.yaw)*p.pace*dt,z=at.z-Math.cos(p.yaw)*p.pace*dt;
     if(sim.world.canMove(x,z,0,.3)){at.x=x;at.z=z;}
-    if(d<43&&focus.y<4&&p.cooldown<=0&&!sim.police.jammed){
+    if(d<43&&focus.y<4&&p.cooldown<=0&&(p.kind==='syndicate'||!sim.police.jammed)){
       const clear=[.18,.38,.60,.81].every(t=>sim.world.canMove(at.x+(focus.x-at.x)*t,at.z+(focus.z-at.z)*t,0,.05));
-      if(clear){sim.combat.enemyStrike(at,focus);p.cooldown=1.8+Math.abs(Math.sin(sim.time+p.phase))*1.2;}
+      if(clear){
+        sim.combat.enemyStrike(at,focus);p.cooldown=1.8+Math.abs(Math.sin(sim.time+p.phase))*1.2;
+        p.markedUntil=sim.time+3;
+      }
     }
     p.cooldown-=dt;
     animateWalker(p,sim.time,d<46,2);
@@ -145,7 +151,9 @@ export function updateDispatch(sim,dt) {
   if(!p.stars)return;
   const focus=sim.focus();
   const d=(v)=>Math.hypot(v.pos.x-focus.x,v.pos.z-focus.z, (v.pos.y-focus.y)*.7);
-  const eyes=p.units.some(unit=>unit.car.hull>0&&d(unit.car)<42)||p.air&&d(p.air)<44;
+  const beam=Boolean(p.air&&Math.hypot(p.air.pos.x-focus.x,p.air.pos.z-focus.z)<58&&!p.jammed);
+  p.spotlight=beam;
+  const eyes=p.units.some(unit=>unit.car.hull>0&&d(unit.car)<42)||beam;
   p.quiet+=dt*(eyes&&!p.jammed?-.7:p.jammed?3:1);
   p.quiet=Math.max(0,p.quiet);
   if(p.quiet>10.5+p.stars*2.3){
@@ -157,7 +165,9 @@ export function updateDispatch(sim,dt) {
     for(let i=p.units.length-1;i>=0;i--){
       const unit=p.units[i];
       if(d(unit.car)>183||unit.car.hull<=0||p.stars<MIN_STARS[unit.id]){
-        removeVehicle(sim.scene,unit.car);p.units.splice(i,1);
+        if(unit.car.wrecked)sim.vehicles.push(unit.car);
+        else removeVehicle(sim.scene,unit.car);
+        p.units.splice(i,1);
       }
     }
     const id=MIN_STARS.findIndex((min,i)=>p.stars>=min&&!p.units.some(u=>u.id===i));
@@ -167,7 +177,7 @@ export function updateDispatch(sim,dt) {
   if(p.stars<4&&p.air){removeVehicle(sim.scene,p.air);p.air=null;}
   if(!p.jammed)for(const unit of p.units)updatePursuitUnit(sim,unit,dt);
   if(p.air)flyOverPursuit(sim,dt);
-  updateOfficers(sim,dt);
+  updateHostiles(sim,p.officers,dt);
 }
 
 export function dispatchRows(sim){

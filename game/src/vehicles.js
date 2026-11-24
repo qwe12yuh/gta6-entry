@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { VEHICLES, angleDelta, clamp, headingTo } from './config.js';
+import { VEHICLES, angleDelta, clamp, headingTo, isGround, tideLine } from './config.js';
 import { policeLivery, shadowTexture } from './textures.js';
 
 const cube = new THREE.BoxGeometry(1,1,1);
@@ -91,6 +91,26 @@ export function lightBloom(parent,color,x,y,z,size) {
   sprite.scale.setScalar(size);
   parent.add(sprite);
   return sprite;
+}
+
+export function groundGlow(parent,color,x,z,width,length,opacity=.5) {
+  const mesh=new THREE.Mesh(flat,new THREE.MeshBasicMaterial({
+    map:glowMap(color),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    toneMapped:false,opacity,
+  }));
+  mesh.rotation.x=-Math.PI/2;mesh.position.set(x,.076,z);mesh.scale.set(width,length,1);
+  parent.add(mesh);
+  return mesh;
+}
+
+const charred=material(0x211a1a,.98);
+export function charVehicle(v){
+  v.body.traverse(part=>{
+    if(part.isMesh)part.material=charred;
+    if(part.isSprite)part.visible=false;
+  });
+  for(const reflection of v.parts.reflections??[])reflection.visible=false;
+  v.boost=false;v.speed=0;v.drift=false;
 }
 
 function shapeCoachwork(group,m,rings) {
@@ -221,7 +241,7 @@ function buildRoadVehicle(group,type,spec) {
     panel(group,black,0,1.53,.02,.61,.10,.27);
     panel(group,lamp,0,1.62,.02,.55,.14,.24);
   }
-  const lights=[];
+  const lights=[],reflections=[];
   if (police){
     const y=high?1.99:1.57;
     panel(group,black,0,y,.19,1.53,.13,.34);
@@ -229,6 +249,7 @@ function buildRoadVehicle(group,type,spec) {
     panel(group,azure,.45,y+.083,.19,.61,.13,.29);
     panel(group,pale,0,y+.085,.19,.29,.12,.28);
     lights.push(lightBloom(group,'#ff1b51',-.47,y+.1,.24,2.7),lightBloom(group,'#366dff',.47,y+.1,.24,2.8));
+    reflections.push(groundGlow(group,'#ff1b51',-2.1,1,5.4,14,.47),groundGlow(group,'#366dff',2.1,1.5,5.6,15,.59));
     lightBloom(group,'#fff1cb',-.69,top-.21,-L-.04,1.25);
     lightBloom(group,'#fff1cb',.69,top-.21,-L-.04,1.25);
     for(const side of [-1,1]){
@@ -249,7 +270,7 @@ function buildRoadVehicle(group,type,spec) {
       group.add(flame);boosters.push({flame,shell});
     }
   }
-  return {wheels,lights,boosters,coachwork,radius:1.45};
+  return {wheels,lights,boosters,coachwork,reflections,radius:1.45};
 }
 
 const decals=new Map();
@@ -306,15 +327,37 @@ function buildHelicopter(group,spec,type){
   lightBloom(group,'#ff3e32',-.93,1.1,.18,1);
   lightBloom(group,'#72fbbb',.93,1.1,.18,1);
   const light=lightBloom(group,'#ffeca6',0,.69,-2.58,1.63);
-  if(type==='falcon'){
-    const beam=new THREE.Mesh(new THREE.ConeGeometry(4.8,25,20,1,true),new THREE.MeshBasicMaterial({
-      color:0xffe9b6, transparent:true, opacity:.11, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending,
-    }));
-    beam.position.set(0,-11.92,-1.85);beam.rotation.z=.15;group.add(beam);
-    light.scale.setScalar(3.7);
-  }
+  if(type==='falcon')light.scale.setScalar(3.7);
   return {wheels:[],mainRotor,tailRotor,radius:2.15};
 }
+
+function buildSpeedboat(group,spec){
+  const hull=paint(spec.color);
+  const coachwork=shapeCoachwork(group,hull,[[-3.1,.08,.05,.52],[-1.8,.87,-.39,.64],[1.9,1.1,-.37,.61],[2.7,.94,-.25,.58]]);
+  modelPart(group,rounded,glass,0,.67,-.5,.79,.44,.69);
+  panel(group,pale,0,.59,1.15,1.49,.21,1.7);
+  panel(group,alloy,0,.47,2.6,1.6,.42,.29);
+  for(const side of [-1,1])panel(group,azure,side*.81,.55,.66,.10,.085,3.4);
+  lightBloom(group,'#78f6e0',.82,.63,-1.37,1.05);
+  lightBloom(group,'#ff554e',-.82,.63,-1.37,1.05);
+  return {wheels:[],radius:1.6,water:true,coachwork};
+}
+
+const wakeGeometry=new THREE.PlaneGeometry(13,34).rotateX(-Math.PI/2);
+const wakeShaders={
+  vertexShader:`varying vec2 vUv;
+    void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`varying vec2 vUv; uniform float phase;uniform float opacity;
+    void main(){
+      float along=1.0-vUv.y;
+      float across=abs(vUv.x-.5);
+      float trail=exp(-abs(across-(.045+along*.39))*28.);
+      float prop=exp(-across*across/(.007+along*.022))*.58;
+      float chop=pow(.5+.5*sin(along*132.-phase*13.+across*28.),2.);
+      float broken=.56+.44*sin(along*77.+across*106.+sin(across*56.-phase*.8));
+      gl_FragColor=vec4(.85,1.,.96,(trail*.78+prop*chop)*broken*(1.-along)*opacity);
+    }`,
+};
 
 let shadowMaterial;
 export function spawnVehicle(scene,type,x,z,yaw=0,y=0) {
@@ -324,7 +367,13 @@ export function spawnVehicle(scene,type,x,z,yaw=0,y=0) {
   root.rotation.y=-yaw;
   const body=new THREE.Group();
   root.add(body);
-  const parts=spec.style==='heli'?buildHelicopter(body,spec,type):buildRoadVehicle(body,type,spec);
+  const parts=spec.style==='heli'?buildHelicopter(body,spec,type):spec.style==='boat'?buildSpeedboat(body,spec):buildRoadVehicle(body,type,spec);
+  if(parts.water){
+    parts.wake=new THREE.Mesh(wakeGeometry,new THREE.ShaderMaterial({
+      ...wakeShaders,uniforms:{phase:{value:0},opacity:{value:0}},transparent:true,depthWrite:false,toneMapped:false,
+    }));
+    parts.wake.position.set(0,-.66,18.9);root.add(parts.wake);
+  }
   compactPanels(body);
   scene.add(root);
   shadowMaterial??=new THREE.MeshBasicMaterial({map:shadowTexture(),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
@@ -351,11 +400,16 @@ export function facingPoint(v,d) {
   return {x:v.pos.x+Math.sin(v.yaw)*d,z:v.pos.z-Math.cos(v.yaw)*d};
 }
 
+export function canSail(x,z) {
+  return x>tideLine(z)+1&&x<715&&Math.abs(z)<480&&!isGround(x,z)
+    && !(x>376&&x<490&&Math.abs(z+131)<12);
+}
+
 function moveGround(v,dt,world,speed=v.speed) {
   const dx=Math.sin(v.yaw)*speed*dt;
   const dz=-Math.cos(v.yaw)*speed*dt;
   const x=v.pos.x,z=v.pos.z;
-  if(world.canMove(x+dx,z+dz,0,v.parts.radius*.69)){
+  if(world.canMove(x+dx,z+dz,v.pos.y,v.parts.radius*.69)){
     v.pos.x+=dx; v.pos.z+=dz;
     return false;
   }
@@ -370,8 +424,8 @@ function moveGround(v,dt,world,speed=v.speed) {
 export function driveVehicle(v,input,dt,world) {
   const throttle=Number(input.forward)-Number(input.back);
   const turn=Number(input.right)-Number(input.left);
-  v.boost=input.boost&&throttle>0&&v.nitro>3&&!v.parts.mainRotor;
-  v.drift=input.brake&&Math.abs(v.speed)>6&&Boolean(turn);
+  v.boost=input.boost&&throttle>0&&v.nitro>3&&!v.parts.mainRotor&&!v.parts.water;
+  v.drift=input.brake&&Math.abs(v.speed)>6&&Boolean(turn)&&!v.parts.water;
   v.nitro=clamp(v.nitro+dt*(v.boost?-25:7.5),0,100);
   const max=v.spec.max*(v.boost?1.28:1)*(.57+v.hull*.0043);
   const target=throttle>0?max:throttle<0?-13:0;
@@ -394,6 +448,16 @@ export function driveVehicle(v,input,dt,world) {
   v.yaw+=turn*grip*dt*Math.min(Math.abs(v.speed)/4,1.38)*(v.speed<0?-1:1);
   v.body.rotation.z+=(turn*Math.min(.10,Math.abs(v.speed)*.0026)-v.body.rotation.z)*dt*8;
   v.body.rotation.x+=(-throttle*.017-v.body.rotation.x)*dt*6;
+  if(v.parts.water){
+    const next=facingPoint(v,v.speed*dt);
+    if(canSail(next.x,next.z)){v.pos.x=next.x;v.pos.z=next.z;return false;}
+    const impact=Math.abs(v.speed);
+    v.speed*=-.23;v.hull=clamp(v.hull-impact*.37,0,100);return impact>4;
+  }
+  if(v.jump!=null){
+    v.vertical-=18*dt;v.pos.y=Math.max(0,v.pos.y+v.vertical*dt);
+    v.body.rotation.x=-clamp(v.vertical*.042,-.22,.24);
+  }
   for(const wheel of v.parts.wheels.slice(0,2))wheel.pivot.rotation.y=turn*-.26;
   return moveGround(v,dt,world);
 }
@@ -415,13 +479,22 @@ export function animateVehicle(v,dt,time) {
   v.root.rotation.y=-v.yaw;
   v.shade.position.set(v.pos.x,.09,v.pos.z);
   v.shade.rotation.z=v.yaw;
-  v.shade.visible=v.pos.y<9;
+  v.shade.visible=v.pos.y<9&&!v.parts.water;
+  if(v.parts.water){
+    v.body.position.y=Math.sin(time*2.7+v.frame)*.11;
+    const wake=v.parts.wake;
+    wake.material.uniforms.phase.value=time;
+    wake.material.uniforms.opacity.value=clamp(v.speed/18,0,1);
+    wake.visible=v.speed>1;
+  }
   for(const {rolling} of v.parts.wheels)rolling.rotation.x-=v.speed*dt/Math.max(.33,rolling.parent.position.y);
-  if(v.parts.lights?.length){
+  if(v.parts.lights?.length&&!v.wrecked){
     const phase=Math.floor(time*7+v.frame)%4;
     for(let i=0;i<v.parts.lights.length;i++){
       const flash=(phase+i*2)%4;
-      v.parts.lights[i].material.opacity=flash===0||flash===1?1:.27;
+      const signal=flash===0||flash===1?1:.27;
+      v.parts.lights[i].material.opacity=signal;
+      v.parts.reflections[i].material.opacity=signal*.61;
     }
   }
   for(const {flame,shell} of v.parts.boosters??[]){
@@ -429,7 +502,7 @@ export function animateVehicle(v,dt,time) {
     flame.scale.z=.95+Math.sin(time*31+flame.position.x)*.21;
     shell.rotation.z=time*6;
   }
-  if(v.parts.mainRotor){
+  if(v.parts.mainRotor&&!v.wrecked){
     v.parts.mainRotor.rotation.y=time*32;
     v.parts.tailRotor.rotation.x=time*47;
   }

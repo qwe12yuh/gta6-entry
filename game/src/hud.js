@@ -1,4 +1,5 @@
-import { AVENUES, CAMPAIGN, CREW, DISTRICTS, GARAGE, HOME, ARMORY, RADIO, RANKS, STREETS, WEAPONS, WORLD, clamp, districtAt, tideLine } from './config.js';
+import * as THREE from 'three';
+import { AVENUES, BOATHOUSE, CAMPAIGN, CREW, DISTRICTS, GARAGE, HOME, ARMORY, RADIO, RANKS, STREETS, WEAPONS, WORLD, clamp, districtAt, tideLine } from './config.js';
 import { clockLabel } from './engine.js';
 import { currentObjective, interactionPrompt } from './missions.js';
 import { dispatchRows } from './police.js';
@@ -17,10 +18,10 @@ const icons={
 };
 function icon(name){return '<svg viewBox="0 0 40 38" aria-hidden="true"><path d="'+icons[name]+'"/></svg>';}
 
-function portrait(name) {
+export function portrait(name) {
   const {color,ink}=CREW[name];
   const hair=name==='Mira'?'M8 31V17Q8 6 23 6Q39 5 39 19L41 31L30 31L29 18L18 16L15 32z':
-    name==='Tariq'?'M12 22V13L21 7L32 9L37 16L33 23L30 15L18 16z':'M10 21l2-10L25 6L37 13L36 20L26 15L15 16z';
+    name==='Rico'?'M12 22V13L21 7L32 9L37 16L33 23L30 15L18 16z':'M10 21l2-10L25 6L37 13L36 20L26 15L15 16z';
   return '<svg viewBox="0 0 48 48" role="img" aria-label="'+name+'"><path fill="'+ink+'" d="M0 0h48v48H0z"/>'+
     '<circle fill="'+color+'" opacity=".47" cx="26" cy="17" r="14"/>'+
     '<path fill="#163743" d="M2 48l4-9 13-6h10l14 6 4 9z"/>'+
@@ -124,7 +125,8 @@ export function renderCityChart(canvas,sim,selected){
   }
   const ctx=canvas.getContext('2d');
   ctx.setTransform(ratio,0,0,ratio,0,0);
-  const scale=Math.min((w-105)/990,(h-57)/848);
+  const compact=canvas.parentElement.classList.contains('preview-chart');
+  const scale=Math.max(.06,Math.min((w-48)/990,(h-25)/810));
   const ox=w*.5-82*scale,oz=h*.50+4*scale;
   const at=(x,z)=>[ox+x*scale,oz+z*scale];
   const background=ctx.createLinearGradient(0,0,w,h);
@@ -135,6 +137,11 @@ export function renderCityChart(canvas,sim,selected){
   for(let i=20;i<h;i+=32){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(w,i);ctx.stroke();}
   ctx.save();ctx.translate(ox,oz);ctx.scale(scale,scale);
   drawRoadNetwork(ctx,sim,true);
+  const regions=[[-1,-391,145,766],[-375,-391,371,326],[-375,-62,371,437],[147,-86,214,36],[147,-257,230,26],[381,-307,146,143]];
+  regions.forEach(([x,z,width,height],i)=>{
+    ctx.fillStyle=DISTRICTS[i].color+'1c';ctx.fillRect(x,z,width,height);
+    ctx.strokeStyle=DISTRICTS[i].color+'76';ctx.lineWidth=2;ctx.strokeRect(x,z,width,height);
+  });
   ctx.restore();
   ctx.font='600 9px Consolas';ctx.fillStyle='#9abfc0';
   for(let i=0;i<7;i++)ctx.fillText(String(18+i)+'°',15,27+i*(h-52)/7);
@@ -143,27 +150,30 @@ export function renderCityChart(canvas,sim,selected){
   ctx.fillText('M I R A M A R   B A Y',seaX-35,seaY);
   const [bayX,bayY]=at(236,265);
   ctx.fillStyle='#7fb3bd';ctx.font='10px Consolas';ctx.fillText('SOLARIS KEYS WATERS',bayX,bayY);
-  const mapKeys=[[GARAGE,'R','#a4e5d9'],[ARMORY,'A','#a4e5d9'],[HOME,'H','#eec78b']];
+  const mapKeys=[[GARAGE,'R','#a4e5d9'],[ARMORY,'A','#a4e5d9'],[HOME,'H','#eec78b'],[BOATHOUSE,'G','#8fe5fd']];
   for(const [site,code,color] of mapKeys){
     const [x,z]=at(site.x,site.z);
     ctx.fillStyle='#102833';ctx.fillRect(x-7,z-7,14,14);
     ctx.strokeStyle=color;ctx.strokeRect(x-6.5,z-6.5,13,13);
     ctx.fillStyle=color;ctx.font='bold 9px Consolas';ctx.fillText(code,x-2.8,z+3.3);
   }
-  const target=currentObjective(sim);
+  const target=sim.missions.waypoint??sim.gpsTarget??currentObjective(sim);
   if(target){
     const p=sim.focus();
     const [x,z]=at(p.x,p.z),[tx,tz]=at(target.x,target.z);
-    ctx.strokeStyle='#ffc979a8';ctx.lineWidth=1.5;ctx.setLineDash([5,5]);
-    ctx.beginPath();ctx.moveTo(x,z);ctx.lineTo(tx,tz);ctx.stroke();ctx.setLineDash([]);
+    ctx.strokeStyle='#ffc979dc';ctx.lineWidth=1.85;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(x,z);ctx.lineTo(x,tz);ctx.lineTo(tx,tz);ctx.stroke();ctx.setLineDash([]);
     marker(ctx,tx,tz,6,'#ffd77e',true);
   }
   DISTRICTS.forEach((district,i)=>{
     const [x,y]=at(district.x,district.z),[a,b]=labelOffset[i];
     const txt=district.name.toUpperCase();
-    ctx.font='800 13px "Segoe UI"';
-    const tw=ctx.measureText(txt).width+37;
-    const xx=clamp(x+a,32,w-tw-12),yy=clamp(y+b,30,h-26);
+    const font=compact?'800 10.5px "Segoe UI"':'800 13px "Segoe UI"';
+    ctx.font=font;
+    const tw=ctx.measureText(txt).width+(compact?31:37);
+    const previewLabels=[[.48,.77],[.045,.30],[.06,.82],[.69,.55],[.52,.17],[.73,.31]];
+    const xx=clamp(compact?w*previewLabels[i][0]:x+a,14,w-tw-8);
+    const yy=clamp(compact?h*previewLabels[i][1]:y+b,22,h-15);
     ctx.strokeStyle=district.color+'93';ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,yy-6);ctx.lineTo(xx+tw*.46,yy-6);ctx.stroke();
     marker(ctx,x,y,3.7,district.color,true);
@@ -172,7 +182,7 @@ export function renderCityChart(canvas,sim,selected){
     ctx.strokeRect(xx+.5,yy-16.5,tw-1,23);
     ctx.fillStyle=district.color;ctx.fillRect(xx,yy-17,2,24);
     ctx.font='700 10px Consolas';ctx.fillText(district.id,xx+7,yy-1);
-    ctx.font='800 13px "Segoe UI"';ctx.fillStyle='#e6ece0';ctx.fillText(txt,xx+25,yy);
+    ctx.font=font;ctx.fillStyle='#e6ece0';ctx.fillText(txt,xx+(compact?23:25),yy);
   });
   const p=sim.focus(),[px,pz]=at(p.x,p.z);
   marker(ctx,px,pz,6,'#0d2533');marker(ctx,px,pz,4.4,'#8df5df');
@@ -198,29 +208,33 @@ export function createHUD(){
   const ctx=labels.minimap.getContext('2d');
   labels.stars.innerHTML=Array.from({length:5},()=>icon('star')).join('');
   labels.weapons.innerHTML=WEAPONS.map((w,i)=>'<div class="weapon" title="'+w.name+'"><b>'+(i+1)+'</b>'+icon(w.icon)+'</div>').join('');
-  labels.abilities.innerHTML=['Swap Plates','Quick Fix','Signal Jammer'].map((name,i)=>
-    '<div class="ability"><kbd>'+['Z','X','C'][i]+'</kbd><span>'+name+'</span><b></b></div>').join('');
+  labels.abilities.innerHTML=Object.entries(CREW).map(([name,member])=>
+    '<div class="ability">'+portrait(name)+'<div><strong>'+member.ability+'</strong><span>'+name+' · '+member.job+
+    '</span></div><div class="ability-state"><kbd>'+member.key+'</kbd><b></b></div><i></i></div>').join('');
+  const point=new THREE.Vector3();
 
   function render(sim){
     hud.hidden=sim.mode!=='play';
     if(hud.hidden)return;
     const p=sim.focus(), d=districtAt(p.x,p.z), district=DISTRICTS[d];
     const target=currentObjective(sim),m=sim.missions;
-    text('operation',m.alternate?'SIDE ACTIVITY':m.index<CAMPAIGN.length?'OPERATION  '+String(m.index+1).padStart(2,'0')+'  /  06':'FREE ROAM');
+    text('operation',m.alternate?'SIDE ACTIVITY':m.index<CAMPAIGN.length?'OPERATION  '+String(m.index+1).padStart(2,'0')+'  /  '+String(CAMPAIGN.length).padStart(2,'0'):'FREE ROAM');
     text('stage',target?'STAGE '+(target.stage+1)+' / '+target.total:'CAMPAIGN CLEAR');
     text('mission-name',target?.title??'Your Keys');
     text('mission-goal',target?.label??'Choose an activity on the map');
-    text('distance',target?Math.round(Math.hypot(p.x-target.x,p.z-target.z))+' M':'');
+    const timer=m.alternate?.kind==='race'&&m.alternate.step>0;
+    text('distance',timer?Math.ceil(m.alternate.time)+' S':target?Math.round(Math.hypot(p.x-target.x,p.z-target.z))+' M':'');
     html('stage-pips',target?Array.from({length:target.total},(_,i)=>'<i class="'+(i===target.stage?'active':i<target.stage?'done':'')+'"></i>').join(''):'');
     const rows=dispatchRows(sim);
     show('dispatch',sim.police.stars>0);
     text('unit-count',rows.length+' UNITS');
-    html('unit-table',rows.map(([name,role,dm])=>'<div class="unit"><span>'+name+'</span><span>'+role+'</span><span>'+dm+' M</span></div>').join(''));
+    html('unit-table',rows.map(([name,role,dm])=>'<div class="unit"><span>'+name+'</span><span class="tactic '+role.toLowerCase().replace(/ /g,'-')+'">'+role+'</span><span>'+dm+' M</span></div>').join(''));
     text('time',clockLabel(sim.clock));
     text('cash','$'+money.format(sim.stats.money));
     Array.from(labels.stars.children).forEach((star,i)=>star.classList.toggle('lit',i<sim.police.stars));
     labels.stars.setAttribute('aria-label','Wanted level '+sim.police.stars+' of 5');
     show('air-unit',Boolean(sim.police.air));
+    text('air-unit',sim.police.spotlight?'IN SIGHT · FALCON-1 SPOTLIGHT':'FALCON-1 · AIR SUPPORT');
     const rank=Math.min(RANKS.length-1,Math.floor(sim.stats.rp/450));
     text('rank',RANKS[rank]);text('rp',money.format(sim.stats.rp)+' RP');fill('rank-fill',rank===RANKS.length-1?100:sim.stats.rp%450/4.5);
     text('district-index',district.id);text('district',district.name);text('street',district.street);
@@ -241,19 +255,43 @@ export function createHUD(){
     text('interaction',interactionPrompt(sim));
     const v=sim.player.vehicle;
     Array.from(labels.abilities.children).forEach((el,i)=>{
-      el.lastElementChild.textContent=sim.cooldowns[i]>0?Math.ceil(sim.cooldowns[i])+' S':i<2&&!v?'IN VEHICLE':'READY';
+      const cooldown=sim.cooldowns[i],member=Object.values(CREW)[i];
+      el.querySelector('b').textContent=cooldown>0?Math.ceil(cooldown)+'s':i===1&&!v?'IN CAR':'READY';
+      el.querySelector('strong').textContent=i===0&&!v?'Call Support':member.ability;
+      el.lastElementChild.style.width=100*(1-cooldown/member.cooldown)+'%';
     });
     show('vehicle',Boolean(v));
+    show('flight-tape',Boolean(v?.parts.mainRotor));
+    show('abilities',!v?.parts.mainRotor||v.pos.y<4);
     if(v){
       const flight=Boolean(v.parts.mainRotor),speed=Math.round(Math.abs(v.speed)*3.6);
-      text('vehicle-class',flight?'FLIGHT TELEMETRY':v.boost?'NITRO ACTIVE':'VEHICLE TELEMETRY');
+      text('vehicle-class',flight?'FLIGHT TELEMETRY':v.parts.water?'MARINE TELEMETRY':v.boost?'NITRO ACTIVE':'VEHICLE TELEMETRY');
       text('gear',flight?(v.pos.y<2?'ON PAD':'AIRBORNE'):'GEAR  '+(v.speed<-.8?'R':speed<2?'N':Math.min(6,1+Math.floor(speed/32))));
       text('speed',speed);text('measurement','KM/H');text('vehicle-name',v.spec.name);
       text('primary-label',flight?'ALT':'NITRO');text('nitro-value',flight?Math.round(v.pos.y)+' M':Math.round(v.nitro)+'%');
       fill('nitro',flight?v.pos.y/2.3:v.nitro);text('hull-value',Math.round(v.hull)+'%');fill('hull',v.hull);
       text('radio',RADIO[sim.audio.radio.station]);
+      show('nitro-row',!v.parts.water);
+      if(flight){
+        const compass=['N','NE','E','SE','S','SW','W','NW'];
+        const heading=(Math.round(v.yaw*180/Math.PI)%360+360)%360;
+        const bearing=Math.round(heading/45)%8;
+        text('heading-left',compass[(bearing+7)%8]);text('heading-right',compass[(bearing+1)%8]);
+        text('heading',compass[bearing]+' '+String(heading).padStart(3,'0')+'°');
+        text('beacon',target?Math.round(Math.hypot(p.x-target.x,p.z-target.z,p.y-(target.action==='flyby'?103:0)))+' M TO BEACON':'GPS STANDBY');
+      }
     }
-    show('reticle',!v&&(sim.aimUntil>sim.time||sim.controls?.aim));
+    const aim=sim.aimUntil>sim.time||sim.controls?.aim;
+    show('reticle',Boolean(aim));
+    labels.reticle.classList.toggle('hit',sim.hitMarkerUntil>sim.time);
+    const enemies=v?[]:[...sim.police.officers,...sim.syndicate].filter(h=>!h.down&&h.markedUntil>sim.time);
+    html('target-pips',enemies.map(h=>{
+      point.copy(h.group.position);point.y+=2;
+      point.project(sim.camera);
+      if(Math.abs(point.x)>.49||Math.abs(point.y)>.71||Math.abs(point.z)>1)return '';
+      return '<div class="hostile" style="left:'+((point.x+1)*50).toFixed(2)+'%;top:'+((1-point.y)*50).toFixed(2)+'%">'+
+        Array.from({length:4},(_,i)=>'<i'+(h.health>i*25?' class="live"':'')+'></i>').join('')+'</div>';
+    }).join(''));
     labels.damage.classList.toggle('active',sim.hitUntil>sim.time);
   }
   return {render};

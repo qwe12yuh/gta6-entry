@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { AVENUES, STREETS, avenueHasGreen, isGround, seededRandom, tideLine } from './config.js';
+import { AVENUES, COVER, STREETS, angleDelta, avenueHasGreen, isGround, seededRandom, tideLine } from './config.js';
+import { RAMPS } from './missions.js';
 import { buildSurfaceLibrary, signTexture, towerFacade } from './textures.js';
+import { animateVehicle, groundGlow, spawnVehicle } from './vehicles.js';
 
 const unitBox = new THREE.BoxGeometry(1,1,1);
 const unitPost = new THREE.CylinderGeometry(.5,.5,1,8);
@@ -146,6 +148,18 @@ function landscapeWaterfront(g,m,random){
     g.box(m.white,x,1.86,z,6.14,.24,4.69);
     g.box(m.gold,x,1.96,z,6.26,.10,4.78);
   }
+  for(let i=0;i<24;i++){
+    const z=-319+i*28.5,x=tideLine(z)-14-(i%3)*4;
+    if(Math.abs(z+244)<22||Math.abs(z+68)<24)continue;
+    const canopy=m.hotels[(i+1)%6];
+    g.line(m.cream,[x,-.10,z],[x,1.96,z],.045);
+    g.put(umbrellaTop,canopy,x,2.02,z,2.26,1.22,2.26,i*.47);
+    g.put(umbrellaTop,m.cream,x,2.28,z,1.05,.65,1.05,i*.47);
+    for(const side of [-1,1]){
+      g.box(side===1?m.aqua:m.neon,x+side*1.87,-.045,z+1.4,1.45,.045,2.7,side*.4);
+      g.box(m.cream,x+side*1.92,.055,z+.65,1.22,.16,.47,side*.4);
+    }
+  }
 }
 
 function installSign(g,label,sub,accent,x,y,z,w,h,yaw=0) {
@@ -209,6 +223,12 @@ function buildGlassTower(g,m,x,z,w,d,h,style) {
   g.box(m.glass,x,3.7,z,w+5.12,4.2,d+5.12);
   g.box(m.dark,x,podium+.35,z,w+5.5,.85,d+5.5);
   g.box(glass,x,(podium+h)/2,z,w,h-podium,d);
+  for(let y=6;y<podium-.8;y+=2.45){
+    for(const side of [-1,1])for(let n=-2;n<=2;n++){
+      g.box(n%3?m.glass:m.lamps,x+side*((w+5)*.5+.07),y,z+n*d/5.75,.10,1.38,2.5);
+      g.box(n%2?m.glass:m.lamps,x+n*w/5.75,y,z+side*((d+5)*.5+.07),2.5,1.38,.10);
+    }
+  }
   g.obstacle(x,z,w+5,d+5,h);
   for(let y=podium+12;y<h-3;y+=13)g.box(m.metal,x,y,z,w+.32,.33,d+.32);
   for(const u of [-1,1])for(const v of [-1,1])g.box(m.metal,x+u*w*.49,(h+podium)/2,z+v*d*.49,.45,h-podium,.45);
@@ -233,8 +253,8 @@ function buildExchangePlaza(g,m){
   const shops=[
     [-110.3,-167.9,'VELA EXCHANGE','FINANCIAL DISTRICT','#94fff2',m.aqua],
     [-145.8,-166.8,'AFTERLIGHT','MUSIC  /  LATE BAR','#ff8bbb',m.neon],
-    [-110.3,-190.3,'ORBITAL','CAFÉ  /  ROOFTOP','#ffda99',m.lamps],
-    [-149,-141.5,'MOSAIC','GALLERY  /  ARCADE','#c8aaff',m.violet],
+    [-110.3,-186.3,'MARISOL ARMS','RESIDENCES  /  MARKET','#ffda99',m.lamps],
+    [-144,-150.6,'BAZAAR NIGHT MARKET','VELA · OPEN LATE','#ffd38f',m.lamps],
   ];
   for(const [x,z,brand,tag,color,luminous] of shops){
     const side=x>-128?1:-1;
@@ -247,19 +267,36 @@ function buildExchangePlaza(g,m){
     installSign(g,brand,tag,color,x-side*.64,4.75,z,10.6,2.42,Math.PI/2);
     const tint=new THREE.PointLight(color,47,25,2);
     tint.position.set(x-side*3,2.2,z);g.scene.add(tint);
+    groundGlow(g.scene,color,x-side*6,z,17.3,17.0,.27);
+    groundGlow(g.scene,color,x-side*12,z,16,7.5,.13);
   }
   for(const [x,z] of [[-113,-149],[-143,-146],[-113,-161],[-143,-167]]){
     g.box(m.cement,x,.27,z,2.13,.50,2.13);
     g.box(m.soil,x,.54,z,1.82,.09,1.82);
     palm(g,m,x,z,4.1,z*.12);
   }
+  for(const z of [-143,-152,-167,-181,-195]){
+    let prior=null;
+    for(let i=0;i<=14;i++){
+      const x=-145+i*2.4,y=6.7-2.3*Math.sin(i*Math.PI/14);
+      const p=[x,y,z+(i%3)*.11];
+      if(prior)g.line(m.dark,prior,p,.026);
+      prior=p;
+      if(i%2===1){
+        g.line(m.metal,p,[x,y-.42,p[2]],.030);
+        g.orb(m.neon,x,y-.39,p[2],.43,.56,.43);
+        g.orb(m.lamps,x,y-.47,p[2]-.05,.31,.33,.30);
+        g.box(m.metal,x,y-.66,p[2],.20,.06,.20);
+      }
+    }
+  }
 }
 
 function buildBlocks(g,m,rng) {
   const hotels=[
-    ['SOLARIS','OCEANLIGHT HOTEL','#ffae92'],['CASA LUZ','BEACH CLUB','#81f9e0'],
-    ['DELFIN','OCEAN TERRACE','#ffe0a4'],['LUNA VELA','ROOMS & COCKTAILS','#ed9dc9'],
-    ['COSTA 58','THE STRAND','#ffc382'],['ARCO HOUSE','BAY HOTEL','#9deeea'],
+    ['ARCO HOUSE','BAY HOTEL','#9deeea'],['CASA LUZ','BEACH CLUB','#81f9e0'],
+    ['SOLARIS CLUB','OCEAN TERRACE','#ffe0a4'],['PALM ROYALE','ROOMS & COCKTAILS','#a1faee'],
+    ['HOTEL MIRAMAR','THE STRAND','#ffc382'],['SOLARIS CLUB','OCEANLIGHT','#ff99bc'],
   ];
   for(let col=0;col<AVENUES.length;col++) for(let row=0;row<STREETS.length-1;row++){
     const x0=col===0?-375:AVENUES[col-1]+14, x1=AVENUES[col]-(col===4?16:13);
@@ -270,7 +307,9 @@ function buildBlocks(g,m,rng) {
       const sign=hotels[row%hotels.length];
       const h=18+rng()*7;
       buildDecoHotel(g,m,x1-16,z-13,25,26,h,row%6,sign);
-      buildDecoHotel(g,m,x1-16,z+16,23,25,h*.78,(row+2)%6,null);
+      buildDecoHotel(g,m,x1-16,z+16,23,25,h*.78,(row+2)%6,row===4?hotels[3]:null);
+      installSign(g,sign[0],sign[1],sign[2],x1-12,h+1.9,z-13,17,2.85,Math.PI/2);
+      groundGlow(g.scene,sign[2],x1+14,z-13,25,31,.18);
       g.box(m.soil,x0+13,.24,z,10,.28,42);
       for(let n=-1;n<=1;n++) palm(g,m,x0+13,z+n*14,6+rng()*2,rng()*6);
     } else if(row<4&&col>0){
@@ -295,6 +334,34 @@ function buildBlocks(g,m,rng) {
   installSign(g,'PALOMA','BODY SHOP  /  RESPRAY','#ffba73',-201,4.1,205,18,3);
   installSign(g,'KEYS SUPPLY','ARMORY  /  24H','#8cfae3',-111,4.1,29,16,2.5);
   installSign(g,'LA PALMA','SAFEHOUSE  /  CREW','#ffe4a3',-46,4,207,14,2.5);
+  installSign(g,'MIRAMAR LAUNCH','BOATHOUSE  /  PUBLIC DOCK','#8cfae3',330,2.15,-51,12,2);
+  for(const [name,x,z,height,color] of [['PALM ROYALE',45.1,64,8.4,'#a8fff0'],['HOTEL MIRAMAR',44.6,46,13.1,'#ffd28f']]){
+    g.line(m.metal,[x-3.6,.18,z],[x-3.6,height+.53,z],.11);
+    g.line(m.cream,[x-4.7,height-1.42,z],[x+4.8,height-1.42,z],.085);
+    installSign(g,name,'OCEANLIGHT BOULEVARD',color,x,height,z,9.4,2.62);
+  }
+}
+
+function furnishChallenges(g,m){
+  for(const [x,z] of COVER){
+    g.box(m.cement,x,.43,z,2.8,.86,.71);
+    g.box(m.cement,x,.79,z,2.55,.28,.49);
+    for(const off of [-1,1])g.box(m.gold,x+off*.94,.54,z+.366,.20,.33,.04,0,0,-.35);
+    g.obstacle(x,z,2.8,.71,1);
+  }
+  const wedge=new THREE.BufferGeometry();
+  wedge.setAttribute('position',new THREE.Float32BufferAttribute([
+    -1.48,0,2.9, 1.48,0,2.9, -1.48,.93,-2.9, 1.48,.93,-2.9, -1.48,0,-2.9, 1.48,0,-2.9,
+  ],3));
+  wedge.setIndex([0,1,2,1,3,2,0,2,4,1,5,3,2,3,4,3,5,4]);wedge.computeVertexNormals();
+  for(const [x,z,yaw] of RAMPS){
+    g.put(wedge,m.metal,x,.08,z,1,1,1,-yaw);
+    for(const side of [-1,1]){
+      const off=side*1.40;
+      g.line(m.gold,[x+Math.cos(yaw)*off-Math.sin(yaw)*2.9,.10,z+Math.sin(yaw)*off+Math.cos(yaw)*2.9],
+        [x+Math.cos(yaw)*off+Math.sin(yaw)*2.9,1.05,z+Math.sin(yaw)*off-Math.cos(yaw)*2.9],.048);
+    }
+  }
 }
 
 function palmBlade() {
@@ -462,7 +529,17 @@ function makeFerrisWheel(g,m) {
     const hoop=new THREE.Mesh(ring,m.cream);
     hoop.position.z=offset;
     wheel.add(hoop);
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(r-.22,.18,7,120),offset<0?m.neon:m.lamps);
+    rim.position.z=offset+Math.sign(offset)*.12;wheel.add(rim);
   }
+  const rimBulb=new THREE.IcosahedronGeometry(.29,0);
+  const bulbs=new THREE.InstancedMesh(rimBulb,m.lamps,96);
+  const pose=new THREE.Matrix4();
+  for(let i=0;i<96;i++){
+    const a=i*Math.PI/24;
+    bulbs.setMatrixAt(i,pose.makeTranslation(Math.cos(a)*r,Math.sin(a)*r,i<48?2.59:-2.59));
+  }
+  wheel.add(bulbs);
   const inner=new THREE.Mesh(new THREE.TorusGeometry(r*.78,.12,6,72),m.aqua);
   wheel.add(inner);
   const spokeGeometry=new THREE.CylinderGeometry(.11,.11,r*2,6);
@@ -556,6 +633,7 @@ export function buildSolarisKeys(scene) {
   paintAsphalt(geometry,materials);
   buildBlocks(geometry,materials,random);
   buildExchangePlaza(geometry,materials);
+  furnishChallenges(geometry,materials);
   furnishStreets(geometry,materials,random);
   landscapeWaterfront(geometry,materials,random);
   buildArcoCauseway(geometry,materials);
@@ -563,9 +641,28 @@ export function buildSolarisKeys(scene) {
   const {wheel,gondolas}=makeFerrisWheel(geometry,materials);
   buildCalypsoPort(geometry,materials);
   geometry.finish();
+  const launches=[[246,-8,76,31],[327,17,43,36],[403,-35,34,34],[305,-165,45,37]].map(([x,z,rx,rz],i)=>
+    ({boat:spawnVehicle(scene,'boat',x,z,0),x,z,rx,rz,phase:.8+i*1.39}));
+  const swimmers=Array.from({length:12},(_,i)=>{
+    const group=new THREE.Group(),z=-283+i*52,x=tideLine(z)+3.5+(i%3)*3.8;
+    const head=new THREE.Mesh(unitSphere,standard([0x8f5037,0xb26944,0xb98163][i%3]));
+    head.scale.set(.67,.59,.65);head.position.y=.1;group.add(head);
+    const vest=new THREE.Mesh(unitSphere,i%2?materials.aqua:materials.neon);
+    vest.scale.set(1.32,.32,.54);group.add(vest);scene.add(group);
+    return {group,x,z};
+  });
 
   return {
     blocks:geometry.colliders,
+    rampAt(v){
+      const id=RAMPS.findIndex(([x,z,yaw])=>{
+        const dx=v.pos.x-x,dz=v.pos.z-z;
+        const lateral=Math.abs(dx*Math.cos(yaw)+dz*Math.sin(yaw));
+        const forward=dx*Math.sin(yaw)-dz*Math.cos(yaw);
+        return Math.abs(angleDelta(yaw,v.yaw))<.55&&lateral<2.6&&forward>.55&&forward<3.35;
+      });
+      return id<0?null:id;
+    },
     canMove(x,z,y,r=.45) {
       if(y<2.5&&!isGround(x,z)) return false;
       return !geometry.colliders.some(b=>y<b.h+.2&&Math.abs(x-b.x)<b.w/2+r&&Math.abs(z-b.z)<b.d/2+r);
@@ -576,6 +673,13 @@ export function buildSolarisKeys(scene) {
         red.emissiveIntensity=open?0:1.7;green.emissiveIntensity=open?1.5:0;
       });
       wheel.rotation.z=time*.057;
+      for(const {boat,x,z,rx,rz,phase} of launches){
+        const a=phase+time*.105;
+        boat.pos.set(x+Math.cos(a)*rx,0,z+Math.sin(a)*rz);
+        boat.yaw=Math.atan2(-Math.sin(a)*rx,-Math.cos(a)*rz);boat.speed=21;
+        animateVehicle(boat,0,time);
+      }
+      swimmers.forEach(({group,x,z},i)=>group.position.set(x+Math.sin(time*.4+i)*1.2,-.67+Math.sin(time*3+i)*.08,z+Math.cos(time*.3+i)*2.2));
       for(const pod of gondolas)pod.rotation.z=-wheel.rotation.z;
       for(const {mesh,phase,angle} of geometry.trees){
         mesh.rotation.x=Math.sin(time*1.4+phase)*.13;

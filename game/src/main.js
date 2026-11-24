@@ -16,19 +16,23 @@ function startSolarisKeys(){
     if(!sim.director)return;
     sim.director=null;sim.cameraCut=true;
   };
+  sim.frameTitle=()=>{sim.director=null;frameTitle(sim);};
   const menu=createSafehouseMenu(sim,releasePreview);
   const shot=new URLSearchParams(location.search).get('shot');
-  if(!stageShowcase(sim,shot))frameTitle(sim);
+  const showcase=stageShowcase(sim,shot);
+  if(!showcase)frameTitle(sim);
+  menu.render();
 
   function act(code){
     sim.audio.unlock();
     if(code==='Escape'){
-      if(sim.mode==='play')menu.setMode('pause');
-      else if(sim.mode==='pause'||sim.mode==='map')menu.setMode('play');
+      if(sim.mode==='play')menu.setMode('hub','pause');
+      else if(sim.mode==='hub')menu.setMode('play');
+      else if(sim.mode==='start')menu.setMode('start');
       return;
     }
-    if(code==='KeyM'&&['play','pause','map'].includes(sim.mode)){
-      menu.setMode(sim.mode==='map'?'play':'map');return;
+    if(code==='KeyM'&&['play','hub'].includes(sim.mode)){
+      menu.toggleAtlas();return;
     }
     if(sim.mode!=='play')return;
     if(activeInputs.has(code)||code==='KeyV')releasePreview();
@@ -54,11 +58,17 @@ function startSolarisKeys(){
   }
 
   sim.controls=connectControls(canvas,act,look);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden&&sim.mode==='play'&&!sim.director)menu.setMode('pause');});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&sim.mode==='play'&&!sim.director)menu.setMode('hub','pause');});
   let last=performance.now(),frames=0,uiTime=0;
   function frame(now){
+    if(sim.director?.finished&&sim.mode===(shot==='start'?'start':'play')){
+      last=now;menu.render();requestAnimationFrame(frame);return;
+    }
     let dt=clamp((now-last)/1000,.001,.084);
     last=now;
+    if(sim.director?.shot&&!sim.director.finished){
+      dt=Math.min(1/30,sim.director.captureAt-sim.time);
+    }
     while(dt>.0005){
       const step=Math.min(dt,1/40);
       advanceSimulation(sim,step,sim.controls,interact);
@@ -68,8 +78,11 @@ function startSolarisKeys(){
     frame.last=now;
     menu.render();
     const uiDue=now>=uiTime;
-    if(uiDue||!frames){uiTime=now+60;hud.render(sim);}
-    if(++frames===4)window.__shotReady=true;
+    const capture=sim.director?.shot&&sim.time>=sim.director.captureAt-.0006;
+    if(uiDue||!frames||capture){uiTime=now+60;hud.render(sim);}
+    frames++;
+    if(capture){sim.director.finished=true;window.__shotReady=true;}
+    if(!showcase&&frames===4)window.__shotReady=true;
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

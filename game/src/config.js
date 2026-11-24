@@ -20,6 +20,7 @@ export const VEHICLES = {
   moto: { name: 'Halcyon 800', style: 'moto', max: 48, grip: 1.5, accel: 18, color: 0xdb6f39 },
   heli: { name: 'Kestrel-X Helicopter', style: 'heli', max: 69, grip: 1, accel: 13, color: 0xe89d45 },
   falcon: { name: 'Falcon-1', style: 'heli', max: 69, grip: 1, accel: 13, color: 0x314859 },
+  boat: { name: 'Miramar Swift', style: 'boat', max: 43, grip: 1.04, accel: 13, color: 0xe6ebde },
 };
 
 export const WEAPONS = [
@@ -33,14 +34,16 @@ export const WEAPONS = [
 ];
 
 export const CREW = {
-  Mira: { job: 'SIGNAL CONTROL', color: '#ffad79', ink: '#432441' },
-  Tariq: { job: 'FIELD OPERATIONS', color: '#83d9d8', ink: '#292b3c' },
-  Vega: { job: 'TRANSPORT', color: '#e9ba69', ink: '#343758' },
+  Mira: { job: 'Driver', color: '#ffad79', ink: '#432441', ability: 'Swap Plates', key: 'Z', cooldown: 24 },
+  Rico: { job: 'Mechanic', color: '#83d9d8', ink: '#292b3c', ability: 'Quick Fix', key: 'X', cooldown: 35 },
+  Vega: { job: 'Comms', color: '#e9ba69', ink: '#343758', ability: 'Signal Jammer', key: 'C', cooldown: 40 },
 };
 
 export const HOME = { x: -38, z: 196 };
 export const GARAGE = { x: -205, z: 196 };
 export const ARMORY = { x: -118, z: 20 };
+export const BOATHOUSE = { x: 330, z: -55 };
+export const COVER = [[-130.5,-138.0],[-124,-139.0],[-132.8,-143.5],[-122.2,-155],[-134,-169],[-119.2,-180],[420,-248],[428,-249],[443,-237]];
 export const RADIO = ['Off air', '88.4  Tide FM', '96.2  Palma Pulse', '103.7  Night Ferry'];
 export const RANKS = ['Runner', 'Coastline Local', 'Prime Operative', 'Harbor Phantom', 'Keys Legend'];
 
@@ -50,8 +53,8 @@ export const CAMPAIGN = [
     ['drive', 'Take the Apex parked by Oceanlight', 58, 124, 'Red paint. Under the palms. You’ll know it when you see it.'],
     ['visit', 'Deliver the car to Miramar Pier', 219, -68, 'Pier office has a fresh manifest. Trade me the keys for a look.'],
   ] },
-  { name: 'Paper Harbor', crew: 'Tariq', reward: 1550, district: 3, stages: [
-    ['meet', 'Find Tariq on the Miramar boardwalk', 221, -68, 'The Freeport books have names written over other names. I marked a crate.'],
+  { name: 'Paper Harbor', crew: 'Rico', reward: 1550, district: 3, stages: [
+    ['meet', 'Find Rico on the Miramar boardwalk', 221, -68, 'The Freeport books have names written over other names. I marked a crate.'],
     ['collect', 'Recover the sealed manifest', 430, -244, 'Use Arco Crossing. The manifest is in the marked container row.'],
     ['visit', 'Bring the manifest to the Palma garage', -205, 196, 'Vega has a scanner and no love for Customs. Back to Palma.'],
   ] },
@@ -59,6 +62,12 @@ export const CAMPAIGN = [
     ['meet', 'Contact Mira at Exchange Avenue', -128, -156, 'Every impounded car has a beacon. We can use their network to clear the harbor.'],
     ['disable', 'Take the Exchange relay offline', -109, -149, 'That violet relay is our way in. Once it drops, so does their quiet.'],
     ['evade', 'Disappear from the police grid', -38, -68, 'Move. You can lose the pursuit in the side streets.'],
+  ] },
+  { name: 'Afterlight Siege', crew: 'Mira', reward: 2900, district: 1, stages: [
+    ['meet', 'Meet Mira outside the Night Market', -128, -133, 'The syndicate sold our neighbors’ addresses. Four brokers are guarding the ledgers. I’ll take the next barricade.'],
+    ['sweep', 'Clear the four syndicate guards', -128, -156, 'Stay by the concrete. If they pin you down, I’ll draw their eyes.'],
+    ['collect', 'Recover the Afterlight ledger', -128, -170, 'Names, payments, and the cops they bought. Get it off the street.'],
+    ['visit', 'Deliver the ledger to Palma', -38, 196, 'Nobody else gets to bury this. Put it in the safehouse vault.'],
   ] },
   { name: 'Heat on the Coast', crew: 'Mira', reward: 3900, district: 0, stages: [
     ['meet', 'Take Mira’s call at the Strand', 58, 196, 'Arco Control is about to close the gate. Copy the patrol key first.'],
@@ -69,10 +78,16 @@ export const CAMPAIGN = [
   { name: 'Goods in the Sky', crew: 'Vega', reward: 4600, district: 5, stages: [
     ['meet', 'Meet Vega at the Calypso helipad', 467, -214, 'Their last copy is in an air courier’s box. The Kestrel is fueled.'],
     ['fly', 'Take off in the Kestrel-X', 470, -211, 'Space to lift. Control to descend. Take her above the cranes.'],
-    ['flyby', 'Cross the Miramar beacon above the bay', 235, -69, 'Hold altitude over the wheel. The beacon will sync our copy.'],
+    ['flyby', 'Cross the Miramar beacon above the bay', 295, -32, 'Hold altitude over the wheel. The beacon will sync our copy.'],
     ['visit', 'Return to the Calypso helipad', 469, -212, 'Bring it home and set down under ten meters.'],
   ] },
-  { name: 'Open the Keys', crew: 'Tariq', reward: 8000, district: 4, stages: [
+  { name: 'Undertow Run', crew: 'Rico', reward: 5600, district: 5, stages: [
+    ['meet', 'Find Rico at the Miramar boat ramp', 330, -55, 'Arco is watched. The Swift can take the patrol key through the channel. I marked your turns.'],
+    ['sail', 'Take the Swift through the outer channel', 364, 38, 'Keep the bridge lights on your left and look for the next buoy.'],
+    ['sail', 'Cross the water gate outside Calypso', 515, -138, 'Signal received. Round the freighter’s bow and bring the launch into the lee of the pier.'],
+    ['sail', 'Deliver the key at Calypso customs', 482, -156, 'Calypso is open. The ferries can run without paying the syndicate.'],
+  ] },
+  { name: 'Open the Keys', crew: 'Vega', reward: 8000, district: 4, stages: [
     ['meet', 'Rendezvous at the Arco control point', 236, -244, 'We have every page. Bring them to the city transmitter.'],
     ['collect', 'Unlock the Exchange transmitter', -128, -156, 'The gate crew will lock us out when you touch it. Do it anyway.'],
     ['evade', 'Clear the final SKPD pursuit', -216, 108, 'The manifests are public. Just make it back to Vega.'],

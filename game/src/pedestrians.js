@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AVENUES, STREETS, angleDelta, avenueHasGreen, headingTo, seededRandom } from './config.js';
+import { AVENUES, COVER, STREETS, angleDelta, avenueHasGreen, headingTo, seededRandom } from './config.js';
 import { panel, spawnVehicle, steerVehicle } from './vehicles.js';
 
 const sphere=new THREE.SphereGeometry(1,10,8);
@@ -22,7 +22,7 @@ function piece(group,geometry,color,x,y,z,sx,sy,sz){
 export function createWalker(scene,kind,index=0){
   const group=new THREE.Group();
   const skin=skinColors[index%skinColors.length];
-  const shirt=kind==='mateo'?0x85c4bf:kind==='officer'?0x25364d:jacketColors[index%jacketColors.length];
+  const shirt=kind==='mateo'?0x85c4bf:kind==='officer'?0x25364d:kind==='mira'?0xe57249:kind==='syndicate'?0x794d74:jacketColors[index%jacketColors.length];
   const pants=kind==='mateo'?0x3e4b58:kind==='officer'?0x202c3b:index%2?0x5c6478:0x986d5d;
   piece(group,capsule,shirt,0,1.16,0,.47,.30,.29).castShadow=kind==='mateo';
   piece(group,capsule,pants,0,.89,.012,.41,.135,.25);
@@ -39,6 +39,11 @@ export function createWalker(scene,kind,index=0){
     panel(group,material(0x151f30),0,1.65,-.105,.22,.032,.135);
     panel(group,material(0xe4b56b),-.108,1.28,-.15,.06,.06,.022);
     panel(group,material(0x161e2a),0,.93,0,.425,.09,.279);
+  }
+  if(kind==='mira'){
+    piece(group,capsule,0x2e202a,0,1.48,.093,.116,.21,.087);
+    panel(group,material(0xf3c486),0,1.23,.156,.25,.106,.042);
+    panel(group,material(0x3b2638),.124,1.15,.157,.048,.39,.04,0,0,.48);
   }
   const arms=[],legs=[];
   for(const side of [-1,1]){
@@ -77,7 +82,7 @@ export function animateWalker(person,time,aim=false,weaponIndex=5){
   }
   group.rotation.z=0;
   const swing=Math.sin(time*(person.pace>5?13:8)+person.phase)*Math.min(.89,person.pace*.15);
-  group.position.y=Math.abs(swing)*.045;
+  group.position.y=Math.abs(swing)*.045-(person.cover?.22:0);
   legs[0].rotation.x=swing;legs[1].rotation.x=-swing;
   arms[0].rotation.x=aim?-1.44:-swing*.51;
   arms[1].rotation.x=aim?-1.48:swing*.51;
@@ -102,6 +107,7 @@ function trafficRoute(axis,index,side){
 export function stageTrafficCar(sim,type,x,z,yaw,route=null){
   const car=spawnVehicle(sim.scene,type,x,z,yaw);
   car.traffic=route;
+  car.stealable=Boolean(route);
   car.target=0;car.cruise=12+(sim.vehicles.length%5)*1.5;
   sim.vehicles.push(car);
   return car;
@@ -123,7 +129,11 @@ export function populateCity(sim){
     ['apex',65.6,124,0],['coupe',-44.3,187,0],['moto',-44,205,Math.PI],['suv',-208,189,0],
     ['taxi',-134,-142,Math.PI],['coupe',-116,-148,0],['coupe',65,-77,Math.PI],['moto',71,25,Math.PI],['heli',470,-211,Math.PI*.52],
   ];
-  for(const [type,x,z,yaw] of parking)stageTrafficCar(sim,type,x,z,yaw);
+  for(const [type,x,z,yaw] of parking){
+    const car=stageTrafficCar(sim,type,x,z,yaw);
+    car.stealable=type!=='heli';
+  }
+  stageTrafficCar(sim,'boat',330,-46,Math.PI);
   for(let i=0;i<52;i++){
     const person=createWalker(sim.scene,'pedestrian',i+2);
     const coast=i<27;
@@ -134,6 +144,39 @@ export function populateCity(sim){
     person.yaw=i%2?0:Math.PI;
     sim.pedestrians.push(person);
   }
+}
+
+export function updateMira(sim,dt){
+  const mira=sim.mira;
+  if(!mira?.group.visible||sim.player.vehicle)return;
+  const player=sim.focus(),at=mira.group.position;
+  const enemies=[...sim.police.officers,...sim.syndicate].filter(p=>!p.down)
+    .sort((a,b)=>a.group.position.distanceToSquared(at)-b.group.position.distanceToSquared(at));
+  const enemy=enemies.find(p=>p.group.position.distanceToSquared(at)<55**2);
+  const cover=enemy&&COVER.find(([x,z])=>Math.hypot(x-player.x,z-player.z)<11);
+  const yaw=sim.player.yaw, tx=cover?cover[0]+.94:player.x-Math.cos(yaw)*2.5;
+  const tz=cover?cover[1]+1.15:player.z+Math.cos(yaw)*1.9-Math.sin(yaw)*2.5;
+  const distance=Math.hypot(tx-at.x,tz-at.z);
+  mira.pace=distance>.62?Math.min(6.7,distance*3):0;
+  const travel=headingTo(tx-at.x,tz-at.z);
+  const x=at.x+Math.sin(travel)*mira.pace*dt,z=at.z-Math.cos(travel)*mira.pace*dt;
+  if(sim.world.canMove(x,at.z,0,.24))at.x=x;
+  if(sim.world.canMove(at.x,z,0,.24))at.z=z;
+  if(distance>44&&sim.world.canMove(tx,tz,0,.24))at.set(tx,0,tz);
+  mira.cover=Boolean(cover)&&distance<1.2;
+  const target=enemy?.group.position;
+  mira.yaw=target?headingTo(target.x-at.x,target.z-at.z):mira.pace?travel:yaw;
+  mira.cooldown=Math.max(0,mira.cooldown-dt);
+  if(target&&!mira.cooldown&&[.15,.35,.55,.75,.91].every(t=>
+    sim.world.canMove(at.x+(target.x-at.x)*t,at.z+(target.z-at.z)*t,1.31,.07))){
+    sim.combat.allyStrike(mira,enemy);mira.cooldown=.55;
+    enemy.markedUntil=sim.time+3;
+    if(sim.time>mira.radioAt){
+      sim.speak('Mira',mira.cover?'I have the market lane from cover. Keep moving.':'I’m with you. Watch the far lane.');
+      mira.radioAt=sim.time+11;
+    }
+  }
+  animateWalker(mira,sim.time,Boolean(enemy),5);
 }
 
 export function placePedestrian(sim,x,z,yaw,index){
